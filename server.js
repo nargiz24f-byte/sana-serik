@@ -165,8 +165,17 @@ ${essay}
 }
 Дайын сөйлемдер жазып берме; тек түсіндірме және жақсарту бағытын ұсын.
 `;
-
-    const response = await ai.models.generateContent({
+async function generateWithRetry(config, attempts = 3) {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await ai.models.generateContent(config);
+    } catch (error) {
+      if (i === attempts - 1) throw error;
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  }
+}
+    |const response = await generateWithRetry({
       model: MODEL,
       contents: prompt,
       config: {
