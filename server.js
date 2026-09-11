@@ -115,7 +115,7 @@ app.post("/api/chat", async (req, res) => {
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
         temperature: 0.45,
-        maxOutputTokens: 650
+        maxOutputTokens: 1500
       }
     });
 
