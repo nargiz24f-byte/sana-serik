@@ -175,7 +175,7 @@ async function generateWithRetry(config, attempts = 3) {
     }
   }
 }
-    |const response = await generateWithRetry({
+    const response = await generateWithRetry({
       model: MODEL,
       contents: prompt,
       config: {
