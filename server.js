@@ -135,6 +135,10 @@ app.post("/api/evaluate", async (req, res) => {
     const essay = safeText(req.body.essay, 12000);
     const topic = safeText(req.body.topic, 500);
     if (!essay) return res.status(400).json({ error: "Бағалау үшін эссе мәтінін енгізіңіз." });
+    const words = essay.trim().split(/\s+/).length;
+    if (words < 40) {
+  return res.status(400).json({ error: "Бағалау үшін эссе кемінде 40 сөз болуы керек." });
+}if (words < 80) return res.status(400).json({ error: "Эссе кемінде 80 сөз болуы керек." });
     if (!ai) return res.status(503).json({ error: "Gemini API кілті серверге қосылмаған." });
 
     const prompt = `
