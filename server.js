@@ -161,26 +161,38 @@ app.post("/api/evaluate", async (req, res) => {
   try {
     const essay = safeText(req.body.essay, 12000);
     const topic = safeText(req.body.topic, 500);
-    if (!essay) return res.status(400).json({ error: "Бағалау үшін эссе мәтінін енгізіңіз." });
-    const words = essay.trim().split(/\s+/).length;
-    if (words < 40) {
-  return res.status(400).json({ error: "Бағалау үшін эссе кемінде 40 сөз болуы керек." });
-}if (words < 80) return res.status(400).json({ error: "Эссе кемінде 80 сөз болуы керек." });
-    if (!ai) return res.status(503).json({ error: "Gemini API кілті серверге қосылмаған." });
+
+    if (!essay) {
+      return res.status(400).json({ error: "Бағалау үшін эссе мәтінін енгізіңіз." });
+    }
+
+    const words = essay.trim().split(/\s+/).filter(Boolean).length;
+
+    if (words < 80) {
+      return res.status(400).json({ error: "Эссе кемінде 80 сөз болуы керек." });
+    }
+
+    if (!groqApiKey) {
+      return res.status(503).json({ error: "Groq API кілті серверге қосылмаған." });
+    }
 
     const prompt = `
 Тақырып: ${topic || "көрсетілмеген"}
+
 Оқушы эссесі:
 ${essay}
 
-Осы жұмысты 10 балдық жүйемен бағала. Әр критерий 0–2 балл:
+Эссені 10 балдық жүйемен бағала.
+
+Әр критерий 0–2 балл:
 1) мазмұн және негізгі ой;
 2) құрылым және логика;
-3) тақырыпты ашу;
+3) тақырыптың ашылуы;
 4) аргумент пен дәлел;
 5) тілдік сауаттылық.
 
-Тек JSON қайтар:
+Тек JSON форматында жауап бер:
+
 {
   "total": 0,
   "criteria": {
@@ -194,38 +206,77 @@ ${essay}
   "improvements": [""],
   "integrityNote": ""
 }
-Дайын сөйлемдер жазып берме; тек түсіндірме және жақсарту бағытын ұсын.
+
+Кері байланыс қазақ тілінде болсын.
+Оқушыға дайын сөйлемдер немесе дайын эссе жазып берме.
+Тек қатесін түсіндіріп, жақсарту бағытын көрсет.
 `;
-async function generateWithRetry(config, attempts = 3) {
-  for (let i = 0; i < attempts; i++) {
-    try {
-      return await ai.models.generateContent(config);
-    } catch (error) {
-      if (i === attempts - 1) throw error;
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    }
-  }
-}
-    const response = await generateWithRetry({
-      model: MODEL,
-      contents: prompt,
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        responseMimeType: "application/json",
-        temperature: 0.2,
-        maxOutputTokens: 1000
+
+    const groqResponse = await fetch(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${groqApiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "openai/gpt-oss-20b",
+          messages: [
+            {
+              role: "system",
+              content: SYSTEM_INSTRUCTION
+            },
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          temperature: 0.2,
+          max_completion_tokens: 1200
+        })
       }
-    });
+    );
+
+    if (!groqResponse.ok) {
+      const details = await groqResponse.text();
+      console.error("Groq evaluation error:", groqResponse.status, details);
+      return res.status(502).json({
+        error: "ЖИ арқылы бағалау мүмкін болмады. Қайта көріңіз."
+      });
+    }
+
+    const groqData = await groqResponse.json();
+    let text = groqData.choices?.[0]?.message?.content || "";
+
+    text = text
+      .replace(/```json/gi, "")
+      .replace(/```/g, "")
+      .trim();
 
     let result;
-    try { result = JSON.parse(response.text); }
-    catch { return res.status(502).json({ error: "Бағалау нәтижесін өңдеу мүмкін болмады. Қайта көріңіз." }); }
 
-    result.total = Math.max(0, Math.min(10, Number(result.total || 0)));
+    try {
+      result = JSON.parse(text);
+    } catch (error) {
+      console.error("Evaluation JSON parse error:", text);
+      return res.status(502).json({
+        error: "Бағалау нәтижесін өңдеу мүмкін болмады. Қайта көріңіз."
+      });
+    }
+
+    result.total = Math.max(
+      0,
+      Math.min(10, Number(result.total || 0))
+    );
+
     res.json(result);
+
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Эссені бағалау кезінде қате пайда болды." });
+    res.status(500).json({
+      error: "Эссені бағалау кезінде қате пайда болды."
+    });
   }
 });
 
