@@ -21,7 +21,7 @@ button,input,textarea{font:inherit}.shell{max-width:1240px;margin:auto;padding:0
 <div class="fields2"><div><label>Оқушының аты-жөні</label><input id="studentName" placeholder="Аты-жөніңіз"></div><div><label>Сынып</label><input id="className" placeholder="8А"></div></div>
 <label>Эссе тақырыбы</label><input id="topic" value="Ұлттық құндылықтар – ел болмысы">
 <label>Эссе мәтіні <span class="hint">(мәтін толықтай өз сөзіңізбен жазылады)</span></label>
-<textarea id="essay" placeholder="Кіріспе → негізгі ой → аргумент пен дәлел → қарсы пікір → қорытынды"></textarea><div id="wordCount" class="count">0 сөз</div>
+<textarea id="essay" onpaste="event.preventDefault(); return false;" ondrop="event.preventDefault(); return false;" onbeforeinput="if(event.inputType==='insertFromPaste'||event.inputType==='insertFromDrop'){event.preventDefault();}" placeholder="Кіріспе → негізгі ой → аргумент пен дәлел → қарсы пікір → қорытынды"></textarea><div id="wordCount" class="count">0 сөз</div>
 <div class="integrity"><b>Академиялық адалдық ережесі</b>САНА-СЕРІК дайын эссе жазбайды. Ол сұрақ қояды, ойды нақтылауға және қатені түсінуге көмектеседі.<label class="checkrow"><input id="integrity" type="checkbox"><span>Мен эссені өзім жазғанымды және ЖИ-ді тек кеңесші ретінде қолданғанымды растаймын.</span></label></div>
 <div class="actions"><button id="evaluateBtn" class="btn secondary">ЖИ арқылы бағалау</button><button id="saveBtn" class="btn">Мұғалімге жіберу</button><button id="clearBtn" class="btn ghost">Тазалау</button></div>
 <div id="studentStatus" class="status"></div>
