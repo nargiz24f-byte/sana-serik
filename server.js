@@ -328,6 +328,54 @@ app.delete("/api/teacher/submissions/:id", requireTeacher, async (req, res) => {
   res.json({ ok: true });
 });
 
+app.post("/api/dictionary", async (req, res) => {
+  try {
+    const text = String(req.body.text || "").trim();
+    const words = text.split(/\s+/).filter(Boolean);
+
+    if (!text) {
+      return res.status(400).json({ error: "Аударатын сөзді енгізіңіз." });
+    }
+
+    if (words.length > 7) {
+      return res.status(400).json({
+        error: "Сөздік тек 7 сөзге дейінгі сөздер мен сөз тіркестерін аударады."
+      });
+    }
+
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${groqApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "openai/gpt-oss-20b",
+        messages: [
+          {
+            role: "system",
+            content: "Сен орысша-қазақша оқу сөздігісің. Орысша сөзді немесе қысқа сөз тіркесін қазақшаға дәл аудар. Тек қазақша аудармасын бер. Толық сөйлем, абзац немесе эссе жазба."
+          },
+          { role: "user", content: text }
+        ],
+        temperature: 0.1
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return res.status(response.status).json({ error: "Сөздікті пайдалану кезінде қате шықты." });
+    }
+
+    const translation = data.choices?.[0]?.message?.content?.trim();
+
+    res.json({ translation });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Сөздікті пайдалану кезінде қате шықты." });
+  }
+});
 app.use((req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
