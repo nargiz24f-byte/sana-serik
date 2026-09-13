@@ -13,6 +13,7 @@ const PORT = Number(process.env.PORT || 3000);
 const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const TEACHER_PASSWORD = process.env.TEACHER_PASSWORD || "change-this-password";
 const apiKey = process.env.GEMINI_API_KEY;
+const groqApiKey = process.env.GROQ_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -95,7 +96,7 @@ app.post("/api/chat", async (req, res) => {
     const history = Array.isArray(req.body.history) ? req.body.history.slice(-10) : [];
 
     if (!message) return res.status(400).json({ error: "Сұрақ бос болмауы керек." });
-    if (!ai) return res.status(503).json({ error: "Gemini API кілті серверге қосылмаған." });
+    if (!groqApiKey) return res.status(503).json({ error: "Groq API кілті серверге қосылмаған." });
 
     if (wantsReadyText(message)) {
       return res.json({
@@ -109,21 +110,47 @@ app.post("/api/chat", async (req, res) => {
       parts: [{ text: safeText(item.text, 2500) }]
     }));
 
-    const chat = ai.chats.create({
-      model: MODEL,
-      history: cleanHistory,
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.45,
-        maxOutputTokens: 1500
-      }
-    });
+    const groqMessages = [
+  { role: "system", content: SYSTEM_INSTRUCTION },
+  ...history.map(item => ({
+    role: item.role === "model" ? "assistant" : "user",
+    content: safeText(item.text, 2500)
+  })),
+  {
+    role: "user",
+    content: `Оқушы: ${studentName || "аты көрсетілмеген"}
+Тақырып: ${topic || "көрсетілмеген"}
+Қазіргі эссе мәтіні:
+${essay || "(әлі жазылмаған)"}
 
-    const response = await chat.sendMessage({
-      message: `Оқушы: ${studentName || "аты көрсетілмеген"}\nТақырып: ${topic || "көрсетілмеген"}\nҚазіргі эссе мәтіні:\n${essay || "(әлі жазылмаған)"}\n\nОқушы сұрағы: ${message}`
-    });
+Оқушының сұрағы: ${message}`
+  }
+];
 
-    res.json({ answer: response.text || "Жауап алынбады. Сұрағыңды нақтылап көр." });
+const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${groqApiKey}`,
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    model: "openai/gpt-oss-20b",
+    messages: groqMessages,
+    temperature: 0.45,
+    max_completion_tokens: 1000
+  })
+});
+
+if (!groqResponse.ok) {
+  throw new Error(`Groq API қатесі: ${groqResponse.status}`);
+}
+
+const groqData = await groqResponse.json();
+const answer = groqData.choices?.[0]?.message?.content;
+
+res.json({
+  answer: answer || "Жауап алынбады. Сұрағыңды нақтылап көр."
+});
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "ЖИ жауабын алу кезінде қате пайда болды." });
